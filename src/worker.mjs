@@ -239,7 +239,7 @@ async function handleCompletions (req, apiKey, retrycnt = 3, now = 0) {
     }
     return handleCompletions(req, retryApiKey, retrycnt - 1, now);
   }
-  return new Response(body, fixCors(response));
+  return new Response(responseText, fixCors(response));
 }
 // const adjustProps = (schemaPart) => {  
 //   if (typeof schemaPart !== "object" || schemaPart === null) {  
