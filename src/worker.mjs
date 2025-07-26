@@ -154,7 +154,6 @@ async function handleEmbeddings (req, apiKey) {
 
 const DEFAULT_MODEL = "gemini-2.0-flash";
 async function handleCompletions (req, apiKey, retrycnt = 3, now = 0) {
-  req.stream = false;
   let model = DEFAULT_MODEL;
   switch (true) {
     case typeof req.model !== "string":
@@ -235,7 +234,7 @@ async function handleCompletions (req, apiKey, retrycnt = 3, now = 0) {
     } else {
       console.log("API_KEYS 环境变量存在，值为:", API_KEYS);
       let apiKeys = API_KEYS.split(",");
-      retryApiKey = apiKeys[(now + retrycnt + 10) % apiKeys.length];
+      retryApiKey = apiKeys[(now + retrycnt + Math.floor(Math.random() * apiKeys.length)) % apiKeys.length];
       console.log("第二个 key:", retryApiKey);
     }
     return handleCompletions(req, retryApiKey, retrycnt - 1, now);
