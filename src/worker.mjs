@@ -153,7 +153,7 @@ async function handleEmbeddings (req, apiKey) {
 }
 
 const DEFAULT_MODEL = "gemini-2.0-flash";
-async function handleCompletions (req, apiKey, retrycnt = 3, now = 0) {
+async function handleCompletions (req, apiKey, retrycnt = 7, now = 0) {
   let model = DEFAULT_MODEL;
   switch (true) {
     case typeof req.model !== "string":
