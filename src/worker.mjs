@@ -27,7 +27,9 @@ export default {
         });
         console.log("当前可用的 API 密钥数量:", apiKeys.length);
         if (apiKeys.length === 0) {
-          throw new HttpError("All API keys are currently in cooldown", 503);
+          console.log("All API keys are in cooldown. Clearing all failed keys.");
+          FAILED_KEYS.clear();
+          throw new HttpError("All API keys were in cooldown. Cleared failed keys and retrying.", 503);
         }
         apiKey = apiKeys[now % apiKeys.length];
         console.log("第二个 key:", apiKey);
@@ -255,7 +257,9 @@ async function handleCompletions (req, apiKey, retrycnt = 7, now = 0) {
       });
       console.log("当前可用的 API 密钥数量:", availableApiKeys.length);
       if (availableApiKeys.length === 0) {
-        throw new HttpError("All API keys are currently in cooldown", 503);
+        console.log("All API keys are in cooldown during retry. Clearing all failed keys.");
+        FAILED_KEYS.clear();
+        throw new HttpError("All API keys were in cooldown. Cleared failed keys and retrying.", 503);
       }
       retryApiKey = availableApiKeys[(now + retrycnt + Math.floor(Math.random() * availableApiKeys.length)) % availableApiKeys.length];
       console.log("第二个 key:", retryApiKey);
