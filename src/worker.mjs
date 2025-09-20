@@ -14,11 +14,19 @@ export default {
       let apiKey = auth?.split(" ")[1];
       const API_KEYS = Netlify.env.get("API_KEYS");
       let now = Date.now();
+      const FAILED_KEYS = globalThis.FAILED_KEYS || (globalThis.FAILED_KEYS = new Map());
+
       if (!API_KEYS) {
         console.log("API_KEYS 环境变量不存在或为空。");
       } else {
         console.log("API_KEYS 环境变量存在，值为:", API_KEYS);
-        let apiKeys = API_KEYS.split(",");
+        let apiKeys = API_KEYS.split(",").filter(key => {
+          const cooldownUntil = FAILED_KEYS.get(key);
+          return !cooldownUntil || cooldownUntil < now;
+        });
+        if (apiKeys.length === 0) {
+          throw new HttpError("All API keys are currently in cooldown", 503);
+        }
         apiKey = apiKeys[now % apiKeys.length];
         console.log("第二个 key:", apiKey);
       }
@@ -155,6 +163,7 @@ async function handleEmbeddings (req, apiKey) {
 const DEFAULT_MODEL = "gemini-2.0-flash";
 async function handleCompletions (req, apiKey, retrycnt = 7, now = 0) {
   let model = DEFAULT_MODEL;
+  const FAILED_KEYS = globalThis.FAILED_KEYS || (globalThis.FAILED_KEYS = new Map());
   switch (true) {
     case typeof req.model !== "string":
       break;
@@ -222,6 +231,10 @@ async function handleCompletions (req, apiKey, retrycnt = 7, now = 0) {
     return new Response(body, fixCors(response));
   }
   const statusCode = response.status;
+  if ([429, 500, 502, 503, 504].includes(statusCode)) {
+    console.log(`API Key ${apiKey} failed with status ${statusCode}. Adding to cooldown.`);
+    FAILED_KEYS.set(apiKey, now + 10 * 60 * 1000); // 10 minutes cooldown
+  }
   const responseText = await response.text();
   console.log("Status Code:", statusCode);
   // console.log("Response Text:", responseText);
@@ -233,8 +246,14 @@ async function handleCompletions (req, apiKey, retrycnt = 7, now = 0) {
       console.log("API_KEYS 环境变量不存在或为空。");
     } else {
       console.log("API_KEYS 环境变量存在，值为:", API_KEYS);
-      let apiKeys = API_KEYS.split(",");
-      retryApiKey = apiKeys[(now + retrycnt + Math.floor(Math.random() * apiKeys.length)) % apiKeys.length];
+      let availableApiKeys = API_KEYS.split(",").filter(key => {
+        const cooldownUntil = FAILED_KEYS.get(key);
+        return !cooldownUntil || cooldownUntil < now;
+      });
+      if (availableApiKeys.length === 0) {
+        throw new HttpError("All API keys are currently in cooldown", 503);
+      }
+      retryApiKey = availableApiKeys[(now + retrycnt + Math.floor(Math.random() * availableApiKeys.length)) % availableApiKeys.length];
       console.log("第二个 key:", retryApiKey);
     }
     return handleCompletions(req, retryApiKey, retrycnt - 1, now);
