@@ -18,12 +18,14 @@ export default {
 
       if (!API_KEYS) {
         console.log("API_KEYS 环境变量不存在或为空。");
+        console.log("当前可用的 API 密钥数量: 0");
       } else {
         console.log("API_KEYS 环境变量存在，值为:", API_KEYS);
         let apiKeys = API_KEYS.split(",").filter(key => {
           const cooldownUntil = FAILED_KEYS.get(key);
           return !cooldownUntil || cooldownUntil < now;
         });
+        console.log("当前可用的 API 密钥数量:", apiKeys.length);
         if (apiKeys.length === 0) {
           throw new HttpError("All API keys are currently in cooldown", 503);
         }
@@ -244,12 +246,14 @@ async function handleCompletions (req, apiKey, retrycnt = 7, now = 0) {
     const API_KEYS = Netlify.env.get("API_KEYS");
     if (!API_KEYS) {
       console.log("API_KEYS 环境变量不存在或为空。");
+      console.log("当前可用的 API 密钥数量: 0");
     } else {
       console.log("API_KEYS 环境变量存在，值为:", API_KEYS);
       let availableApiKeys = API_KEYS.split(",").filter(key => {
         const cooldownUntil = FAILED_KEYS.get(key);
         return !cooldownUntil || cooldownUntil < now;
       });
+      console.log("当前可用的 API 密钥数量:", availableApiKeys.length);
       if (availableApiKeys.length === 0) {
         throw new HttpError("All API keys are currently in cooldown", 503);
       }
