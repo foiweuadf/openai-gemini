@@ -266,7 +266,11 @@ async function handleCompletions (req, apiKey, retrycnt = 7, now = 0) {
       if (availableApiKeys.length === 0) {
         console.log("All API keys are in cooldown during retry. Clearing all failed keys.");
         FAILED_KEYS.clear();
-        throw new HttpError("All API keys were in cooldown. Cleared failed keys and retrying.", 503);
+        // throw new HttpError("All API keys were in cooldown. Cleared failed keys and retrying.", 503);
+        let availableApiKeys = API_KEYS.split(",").filter(key => {
+          const cooldownUntil = FAILED_KEYS.get(key);
+          return !cooldownUntil || cooldownUntil < now;
+        });
       }
       retryApiKey = availableApiKeys[(now + retrycnt + Math.floor(Math.random() * availableApiKeys.length)) % availableApiKeys.length];
       console.log("第二个 key:", retryApiKey);
