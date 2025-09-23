@@ -15,6 +15,7 @@ export default {
       const API_KEYS = Netlify.env.get("API_KEYS");
       let now = Date.now();
       const FAILED_KEYS = globalThis.FAILED_KEYS || (globalThis.FAILED_KEYS = new Map());
+      const LAST_SUCCESSFUL_KEY = globalThis.LAST_SUCCESSFUL_KEY || (globalThis.LAST_SUCCESSFUL_KEY = { key: null, timestamp: 0 });
 
       if (!API_KEYS) {
         console.log("API_KEYS 环境变量不存在或为空。");
@@ -31,7 +32,11 @@ export default {
           FAILED_KEYS.clear();
           throw new HttpError("All API keys were in cooldown. Cleared failed keys and retrying.", 503);
         }
-        apiKey = apiKeys[now % apiKeys.length];
+        if (LAST_SUCCESSFUL_KEY.key && !FAILED_KEYS.has(LAST_SUCCESSFUL_KEY.key) && apiKeys.includes(LAST_SUCCESSFUL_KEY.key)) {
+          apiKey = LAST_SUCCESSFUL_KEY.key;
+        } else {
+          apiKey = apiKeys[now % apiKeys.length];
+        }
         console.log("第二个 key:", apiKey);
       }
       const assert = (success) => {
@@ -231,7 +236,8 @@ async function handleCompletions (req, apiKey, retrycnt = 7, now = 0) {
         return new Response(body, fixCors(response)); // output as is
       }
       body = processCompletionsResponse(body, model, id);
-    }
+    LAST_SUCCESSFUL_KEY.key = apiKey;
+    LAST_SUCCESSFUL_KEY.timestamp = now;
     return new Response(body, fixCors(response));
   }
   const statusCode = response.status;
