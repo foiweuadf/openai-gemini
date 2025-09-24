@@ -559,12 +559,12 @@ const transformMessages = async (messages) => {
         if (role !== "function") {
           const calls = parts?.calls;
           parts = []; parts.calls = calls;
+          transformFnResponse(item, parts);
           contents.push({
             role: "function", // ignored
             parts
           });
         }
-        transformFnResponse(item, parts);
         continue;
       case "assistant":
         item.role = "model";
