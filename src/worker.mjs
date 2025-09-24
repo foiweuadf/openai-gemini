@@ -555,16 +555,22 @@ const transformMessages = async (messages) => {
         continue;
       case "tool":
         // eslint-disable-next-line no-case-declarations
-        let { role, parts } = contents[contents.length - 1] ?? {};
-        if (role !== "function") {
-          const calls = parts?.calls;
-          parts = []; parts.calls = calls;
-          transformFnResponse(item, parts);
-          contents.push({
-            role: "function", // ignored
-            parts
-          });
-        }
+        // let { role, parts } = contents[contents.length - 1] ?? {};
+        // if (role !== "function") {
+        //   const calls = parts?.calls;
+        //   parts = []; parts.calls = calls;
+        //   contents.push({
+        //     role: "function", // ignored
+        //     parts
+        //   });
+        // }
+        const calls = parts?.calls;
+        parts = []; parts.calls = calls;
+        transformFnResponse(item, parts);
+        contents.push({
+          role: "function", // ignored
+          parts
+        });
         continue;
       case "assistant":
         item.role = "model";
