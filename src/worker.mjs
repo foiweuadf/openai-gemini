@@ -564,8 +564,9 @@ const transformMessages = async (messages) => {
         //     parts
         //   });
         // }
-        const calls = parts?.calls;
-        parts = []; parts.calls = calls;
+        // const calls = parts?.calls;
+        let parts = []; 
+        // parts.calls = calls;
         transformFnResponse(item, parts);
         contents.push({
           role: "function", // ignored
