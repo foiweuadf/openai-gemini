@@ -242,7 +242,7 @@ async function handleCompletions (req, apiKey, retrycnt = 7, now = 0) {
     return new Response(body, fixCors(response));
   }
   const statusCode = response.status;
-  if ([429, 500, 502, 503, 504].includes(statusCode)) {
+  if ([400, 401, 402, 403, 429, 500, 502, 503, 504].includes(statusCode)) {
     console.log(`API Key ${apiKey} failed with status ${statusCode}. Adding to cooldown.`);
     FAILED_KEYS.set(apiKey, now + 10 * 60 * 1000); // 10 minutes cooldown
   }
