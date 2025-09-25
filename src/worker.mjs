@@ -586,7 +586,7 @@ const transformMessages = async (messages) => {
       contents.unshift({ role: "user", parts: { text: " " } });
     }
   }
-  console.info(JSON.stringify(contents, 2));
+  // console.info(JSON.stringify(contents, 2));
   return { system_instruction, contents };
 };
 
