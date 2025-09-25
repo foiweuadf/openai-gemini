@@ -15,7 +15,18 @@ export default {
       const API_KEYS = Netlify.env.get("API_KEYS");
       let now = Date.now();
       const FAILED_KEYS = globalThis.FAILED_KEYS || (globalThis.FAILED_KEYS = new Map());
-      const LAST_SUCCESSFUL_KEY = globalThis.LAST_SUCCESSFUL_KEY || (globalThis.LAST_SUCCESSFUL_KEY = { key: null, timestamp: 0 });
+      const PERMANENTLY_FAILED_KEYS = globalThis.PERMANENTLY_FAILED_KEYS || (globalThis.PERMANENTLY_FAILED_KEYS = new Set());
+      const SUCCESS_COUNTS = globalThis.SUCCESS_COUNTS || (globalThis.SUCCESS_COUNTS = new Map());
+
+      // 更新失败密钥状态
+      if (statusCode === 403) {
+        console.log(`API Key ${apiKey} failed with status 403. Permanently removing.`);
+        PERMANENTLY_FAILED_KEYS.add(apiKey);
+        FAILED_KEYS.delete(apiKey);
+      } else if ([401, 402, 429, 500, 502, 503, 504].includes(statusCode)) {
+        console.log(`API Key ${apiKey} failed with status ${statusCode}. Adding to cooldown.`);
+        FAILED_KEYS.set(apiKey, now + 10 * 60 * 1000); // 10 minutes cooldown
+      }
 
       if (!API_KEYS) {
         console.log("API_KEYS 环境变量不存在或为空。");
@@ -24,20 +35,40 @@ export default {
         console.log("API_KEYS 环境变量存在，值为:", API_KEYS);
         let apiKeys = API_KEYS.split(",").filter(key => {
           const cooldownUntil = FAILED_KEYS.get(key);
-          return !cooldownUntil || cooldownUntil < now;
+          return !cooldownUntil || cooldownUntil < now && !PERMANENTLY_FAILED_KEYS.has(key);
         });
         console.log("当前可用的 API 密钥数量:", apiKeys.length);
         if (apiKeys.length === 0) {
-          console.log("All API keys are in cooldown. Clearing all failed keys.");
+          console.log("All API keys are in cooldown or permanently failed. Waiting 7 seconds then clearing all temporary failed keys.");
+          await new Promise(resolve => setTimeout(resolve, 7000));
           FAILED_KEYS.clear();
-          throw new HttpError("All API keys were in cooldown. Cleared failed keys and retrying.", 503);
+          apiKeys = API_KEYS.split(",").filter(key => {
+            const cooldownUntil = FAILED_KEYS.get(key);
+            return !cooldownUntil || cooldownUntil < now && !PERMANENTLY_FAILED_KEYS.has(key);
+          });
+          console.log("After clearing cooldown, available API keys count:", apiKeys.length);
+          if (apiKeys.length === 0) {
+            throw new HttpError("All API keys are permanently failed. Please check your API keys.", 503);
+          }
         }
-        if (LAST_SUCCESSFUL_KEY.key && !FAILED_KEYS.has(LAST_SUCCESSFUL_KEY.key) && apiKeys.includes(LAST_SUCCESSFUL_KEY.key)) {
-          apiKey = LAST_SUCCESSFUL_KEY.key;
+
+        // 按成功次数加权随机取样
+        const totalSuccessCount = apiKeys.reduce((sum, key) => sum + (SUCCESS_COUNTS.get(key) || 0), 0);
+        if (totalSuccessCount === 0) {
+          // 如果都没有成功记录，则均匀随机选择
+          apiKey = apiKeys[Math.floor(Math.random() * apiKeys.length)];
         } else {
-          apiKey = apiKeys[now % apiKeys.length];
+          // 按成功次数加权随机选择
+          let random = Math.random() * totalSuccessCount;
+          for (const key of apiKeys) {
+            random -= (SUCCESS_COUNTS.get(key) || 0);
+            if (random <= 0) {
+              apiKey = key;
+              break;
+            }
+          }
         }
-        console.log("第二个 key:", apiKey);
+        console.log("Selected API key (sorted by success count):", apiKey);
       }
       const assert = (success) => {
         if (!success) {
@@ -173,6 +204,8 @@ const DEFAULT_MODEL = "gemini-2.5-flash";
 async function handleCompletions (req, apiKey, retrycnt = 7, now = 0) {
   let model = DEFAULT_MODEL;
   const FAILED_KEYS = globalThis.FAILED_KEYS || (globalThis.FAILED_KEYS = new Map());
+  const PERMANENTLY_FAILED_KEYS = globalThis.PERMANENTLY_FAILED_KEYS || (globalThis.PERMANENTLY_FAILED_KEYS = new Set());
+  const SUCCESS_COUNTS = globalThis.SUCCESS_COUNTS || (globalThis.SUCCESS_COUNTS = new Map());
   switch (true) {
     case typeof req.model !== "string":
       break;
@@ -244,21 +277,19 @@ async function handleCompletions (req, apiKey, retrycnt = 7, now = 0) {
       }
       body = processCompletionsResponse(body, model, id);
     }
-    LAST_SUCCESSFUL_KEY.key = apiKey;
-    LAST_SUCCESSFUL_KEY.timestamp = now;
+    // 更新成功次数
+    const currentCount = SUCCESS_COUNTS.get(apiKey) || 0;
+    SUCCESS_COUNTS.set(apiKey, currentCount + 1);
+    console.log(`API Key ${apiKey} success count updated to: ${currentCount + 1}`);
+
     return new Response(body, fixCors(response));
   }
   const statusCode = response.status;
-  if ([400, 401, 402, 403, 429, 500, 502, 503, 504].includes(statusCode)) {
-    console.log(`API Key ${apiKey} failed with status ${statusCode}. Adding to cooldown.`);
-    FAILED_KEYS.set(apiKey, now + 10 * 60 * 1000); // 10 minutes cooldown
-  }
   const responseText = await response.text();
   console.log("Status Code:", statusCode);
   // console.log("Response Text:", responseText);
   if(retrycnt>0){
     console.log(`retry, ${retrycnt}`);
-    let retryApiKey = apiKey;
     const API_KEYS = Netlify.env.get("API_KEYS");
     if (!API_KEYS) {
       console.log("API_KEYS 环境变量不存在或为空。");
@@ -267,22 +298,40 @@ async function handleCompletions (req, apiKey, retrycnt = 7, now = 0) {
       console.log("API_KEYS 环境变量存在，值为:", API_KEYS);
       let availableApiKeys = API_KEYS.split(",").filter(key => {
         const cooldownUntil = FAILED_KEYS.get(key);
-        return !cooldownUntil || cooldownUntil < now;
+        return !cooldownUntil || cooldownUntil < now && !PERMANENTLY_FAILED_KEYS.has(key);
       });
       console.log("当前可用的 API 密钥数量:", availableApiKeys.length);
       if (availableApiKeys.length === 0) {
-        console.log("All API keys are in cooldown during retry. Clearing all failed keys.");
+        console.log("All API keys are in cooldown or permanently failed. Waiting 7 seconds then clearing all temporary failed keys.");
+        await new Promise(resolve => setTimeout(resolve, 7000));
         FAILED_KEYS.clear();
-        // throw new HttpError("All API keys were in cooldown. Cleared failed keys and retrying.", 503);
-        let availableApiKeys = API_KEYS.split(",").filter(key => {
+        availableApiKeys = API_KEYS.split(",").filter(key => {
           const cooldownUntil = FAILED_KEYS.get(key);
-          return !cooldownUntil || cooldownUntil < now;
+          return !cooldownUntil || cooldownUntil < now && !PERMANENTLY_FAILED_KEYS.has(key);
         });
+        console.log("After clearing cooldown, available API keys count:", availableApiKeys.length);
       }
-      retryApiKey = availableApiKeys[(now + retrycnt + Math.floor(Math.random() * availableApiKeys.length)) % availableApiKeys.length];
-      console.log("第二个 key:", retryApiKey);
+
+      // 按成功次数加权随机取样
+      const totalSuccessCount = availableApiKeys.reduce((sum, key) => sum + (SUCCESS_COUNTS.get(key) || 0), 0);
+      let retryApiKey;
+      if (totalSuccessCount === 0) {
+        // 如果都没有成功记录，则均匀随机选择
+        retryApiKey = availableApiKeys[Math.floor(Math.random() * availableApiKeys.length)];
+      } else {
+        // 按成功次数加权随机选择
+        let random = Math.random() * totalSuccessCount;
+        for (const key of availableApiKeys) {
+          random -= (SUCCESS_COUNTS.get(key) || 0);
+          if (random <= 0) {
+            retryApiKey = key;
+            break;
+          }
+        }
+      }
+      console.log("Selected retry API key (sorted by success count):", retryApiKey);
+      return handleCompletions(req, retryApiKey, retrycnt - 1, now);
     }
-    return handleCompletions(req, retryApiKey, retrycnt - 1, now);
   }
   return new Response(responseText, fixCors(response));
 }
