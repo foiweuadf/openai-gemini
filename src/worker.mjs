@@ -18,16 +18,6 @@ export default {
       const PERMANENTLY_FAILED_KEYS = globalThis.PERMANENTLY_FAILED_KEYS || (globalThis.PERMANENTLY_FAILED_KEYS = new Set());
       const SUCCESS_COUNTS = globalThis.SUCCESS_COUNTS || (globalThis.SUCCESS_COUNTS = new Map());
 
-      // 更新失败密钥状态
-      if (statusCode === 403) {
-        console.log(`API Key ${apiKey} failed with status 403. Permanently removing.`);
-        PERMANENTLY_FAILED_KEYS.add(apiKey);
-        FAILED_KEYS.delete(apiKey);
-      } else if ([401, 402, 429, 500, 502, 503, 504].includes(statusCode)) {
-        console.log(`API Key ${apiKey} failed with status ${statusCode}. Adding to cooldown.`);
-        FAILED_KEYS.set(apiKey, now + 10 * 60 * 1000); // 10 minutes cooldown
-      }
-
       if (!API_KEYS) {
         console.log("API_KEYS 环境变量不存在或为空。");
         console.log("当前可用的 API 密钥数量: 0");
@@ -285,6 +275,17 @@ async function handleCompletions (req, apiKey, retrycnt = 7, now = 0) {
     return new Response(body, fixCors(response));
   }
   const statusCode = response.status;
+
+  // 更新失败密钥状态
+  if ([401, 402, 429, 500, 502, 503, 504].includes(statusCode)) {
+    console.log(`API Key ${apiKey} failed with status ${statusCode}. Adding to cooldown.`);
+    FAILED_KEYS.set(apiKey, now + 10 * 60 * 1000); // 10 minutes cooldown
+  } else if (statusCode === 403) {
+    console.log(`API Key ${apiKey} failed with status 403. Permanently removing.`);
+    PERMANENTLY_FAILED_KEYS.add(apiKey);
+    FAILED_KEYS.delete(apiKey);
+  }
+
   const responseText = await response.text();
   console.log("Status Code:", statusCode);
   // console.log("Response Text:", responseText);
