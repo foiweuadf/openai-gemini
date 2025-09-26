@@ -604,23 +604,8 @@ const transformMsg = async ({ content }) => {
 const transformMessages = async (messages) => {
   if (!messages) { return; }
   const contents = [];
-  let prevMessageKey = null;
   let system_instruction;
   for (const item of messages) {
-    let messageKey;
-    if (item.role === "tool") {
-      messageKey = JSON.stringify({ role: item.role, tool_call_id: item.tool_call_id });
-    } else {
-      messageKey = JSON.stringify({ role: item.role, content: item.content });
-    }
-    
-    // 只检查前一个消息是否重复
-    if (messageKey === prevMessageKey) {
-      console.log(`Skipping consecutive duplicate message: ${messageKey}`);
-      continue;
-    }
-    
-    prevMessageKey = messageKey;
     switch (item.role) {
       case "system":
         system_instruction = { parts: await transformMsg(item) };
@@ -706,8 +691,7 @@ const reasonsMap = { //https://ai.google.dev/api/rest/v1/GenerateContentResponse
 };
 const SEP = "\n\n|>";
 const transformCandidates = (key, cand) => {
-  const message = { role: "assistant", content: "" };
-  let hasContent = false;
+  const message = { role: "assistant", content: [] };
   for (const part of cand.content?.parts ?? []) {
     if (part.functionCall) {
       const fc = part.functionCall;
@@ -720,17 +704,11 @@ const transformCandidates = (key, cand) => {
           arguments: JSON.stringify(fc.args),
         }
       });
-    } else if (part.text) {
-      if (hasContent) {
-        message.content += SEP;
-      }
-      message.content += part.text;
-      hasContent = true;
+    } else {
+      message.content.push(part.text);
     }
   }
-  if (!hasContent) {
-    message.content = null;
-  }
+  message.content = message.content.join(SEP) || null;
   return {
     index: cand.index || 0, // 0-index is absent in new -002 models response
     [key]: message,
