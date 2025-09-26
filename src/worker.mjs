@@ -717,6 +717,17 @@ const transformCandidates = (key, cand) => {
     //original_finish_reason: cand.finishReason,
   };
 };
+
+// 检查连续相同 tool calls 的工具函数
+const isDuplicateToolCall = (newToolCall, lastToolCalls) => {
+  if (!lastToolCalls || !lastToolCalls.length) return false;
+  
+  const lastToolCall = lastToolCalls[lastToolCalls.length - 1];
+  return (
+    newToolCall.function.name === lastToolCall.function.name &&
+    newToolCall.function.arguments === lastToolCall.function.arguments
+  );
+};
 const transformCandidatesMessage = transformCandidates.bind(null, "message");
 const transformCandidatesDelta = transformCandidates.bind(null, "delta");
 
@@ -822,9 +833,33 @@ function toOpenAiStream (line, controller) {
     }));
   }
   delete cand.delta.role;
-  if ("content" in cand.delta) { // prevent empty data (e.g. when MAX_TOKENS)
-    controller.enqueue(sseline(obj));
+  
+  // 检查 tool calls 是否重复
+  if (cand.tool_calls && cand.tool_calls.length > 0) {
+    const lastObj = this.last[cand.index];
+    const lastToolCalls = lastObj?.choices[0]?.tool_calls || [];
+    
+    // 过滤掉重复的 tool calls
+    const uniqueToolCalls = [];
+    for (const toolCall of cand.tool_calls) {
+      if (!isDuplicateToolCall(toolCall, lastToolCalls)) {
+        uniqueToolCalls.push(toolCall);
+      }
+    }
+    
+    if (uniqueToolCalls.length > 0) {
+      cand.tool_calls = uniqueToolCalls;
+      controller.enqueue(sseline(obj));
+    }
+  } else if ("content" in cand.delta) { // prevent empty data (e.g. when MAX_TOKENS)
+    // 检查是否与前一个内容相同，避免重复发送
+    const lastObj = this.last[cand.index];
+    const lastContent = lastObj?.choices[0]?.delta?.content;
+    if (cand.delta.content !== lastContent) {
+      controller.enqueue(sseline(obj));
+    }
   }
+  
   cand.finish_reason = finish_reason;
   if (data.usageMetadata && this.streamIncludeUsage) {
     obj.usage = transformUsage(data.usageMetadata);
