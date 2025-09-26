@@ -604,8 +604,15 @@ const transformMsg = async ({ content }) => {
 const transformMessages = async (messages) => {
   if (!messages) { return; }
   const contents = [];
+  const seenMessages = new Set();
   let system_instruction;
   for (const item of messages) {
+    const messageKey = JSON.stringify({ role: item.role, content: item.content, tool_calls: item.tool_calls });
+    if (seenMessages.has(messageKey)) {
+      console.log(`Skipping duplicate message: ${messageKey}`);
+      continue;
+    }
+    seenMessages.add(messageKey);
     switch (item.role) {
       case "system":
         system_instruction = { parts: await transformMsg(item) };
