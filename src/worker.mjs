@@ -604,15 +604,23 @@ const transformMsg = async ({ content }) => {
 const transformMessages = async (messages) => {
   if (!messages) { return; }
   const contents = [];
-  const seenMessages = new Set();
+  let prevMessageKey = null;
   let system_instruction;
   for (const item of messages) {
-    const messageKey = JSON.stringify({ role: item.role, content: item.content, tool_calls: item.tool_calls });
-    if (seenMessages.has(messageKey)) {
-      console.log(`Skipping duplicate message: ${messageKey}`);
+    let messageKey;
+    if (item.role === "tool") {
+      messageKey = JSON.stringify({ role: item.role, tool_call_id: item.tool_call_id });
+    } else {
+      messageKey = JSON.stringify({ role: item.role, content: item.content });
+    }
+    
+    // 只检查前一个消息是否重复
+    if (messageKey === prevMessageKey) {
+      console.log(`Skipping consecutive duplicate message: ${messageKey}`);
       continue;
     }
-    seenMessages.add(messageKey);
+    
+    prevMessageKey = messageKey;
     switch (item.role) {
       case "system":
         system_instruction = { parts: await transformMsg(item) };
