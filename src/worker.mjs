@@ -691,7 +691,8 @@ const reasonsMap = { //https://ai.google.dev/api/rest/v1/GenerateContentResponse
 };
 const SEP = "\n\n|>";
 const transformCandidates = (key, cand) => {
-  const message = { role: "assistant", content: [] };
+  const message = { role: "assistant", content: "" };
+  let hasContent = false;
   for (const part of cand.content?.parts ?? []) {
     if (part.functionCall) {
       const fc = part.functionCall;
@@ -704,11 +705,17 @@ const transformCandidates = (key, cand) => {
           arguments: JSON.stringify(fc.args),
         }
       });
-    } else {
-      message.content.push(part.text);
+    } else if (part.text) {
+      if (hasContent) {
+        message.content += SEP;
+      }
+      message.content += part.text;
+      hasContent = true;
     }
   }
-  message.content = message.content.join(SEP) || null;
+  if (!hasContent) {
+    message.content = null;
+  }
   return {
     index: cand.index || 0, // 0-index is absent in new -002 models response
     [key]: message,
