@@ -299,7 +299,7 @@ async function handleCompletions (req, apiKey, retrycnt = 7, now = 0) {
       console.log("API_KEYS 环境变量存在，值为:", API_KEYS);
       let availableApiKeys = API_KEYS.split(",").filter(key => {
         const cooldownUntil = FAILED_KEYS.get(key);
-        return (!cooldownUntil || cooldownUntil < now) && !PERMANENTLY_FAILED_KEYS.get(key);
+        return (!cooldownUntil || cooldownUntil < now) && !PERMANENTLY_FAILED_KEYS.has(key);
       });
       console.log("当前可用的 API 密钥数量:", availableApiKeys.length);
       if (availableApiKeys.length === 0) {
@@ -308,7 +308,7 @@ async function handleCompletions (req, apiKey, retrycnt = 7, now = 0) {
         FAILED_KEYS.clear();
         availableApiKeys = API_KEYS.split(",").filter(key => {
           const cooldownUntil = FAILED_KEYS.get(key);
-          return (!cooldownUntil || cooldownUntil < now) && !PERMANENTLY_FAILED_KEYS.get(key);
+          return (!cooldownUntil || cooldownUntil < now) && !PERMANENTLY_FAILED_KEYS.has(key);
         });
         console.log("After clearing cooldown, available API keys count:", availableApiKeys.length);
       }
