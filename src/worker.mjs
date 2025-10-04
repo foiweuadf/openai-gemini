@@ -210,7 +210,7 @@ async function handleCompletions (req, apiKey, retrycnt = 7, now = 0) {
   console.log(req.messages[req.messages.length - 1]);
   if (req.messages && req.messages.length > 0) {
     const lastMessage = req.messages[req.messages.length - 1];
-    if (lastMessage.content === "Analyze if this message indicates a new conversation topic. If it does, extract a 2-3 word title that captures the new topic. Format your response as a JSON object with two fields: 'isNewTopic' (boolean) and 'title' (string, or null if isNewTopic is false). Only include these fields, no other text.") {
+    if (lastMessage.content.indexOf("Analyze if this message indicates a new conversation topic") > 0) {
       return new Response(JSON.stringify({ "title": "Claude Code", "isNewTopic": true }), fixCors({ status: 200, headers: { "Content-Type": "application/json" } }));
     }
   }
