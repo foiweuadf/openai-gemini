@@ -277,7 +277,7 @@ async function handleCompletions (req, apiKey, retrycnt = 7, now = 0) {
   const statusCode = response.status;
 
   // 更新失败密钥状态
-  if ([401, 402, 429, 500, 502, 503, 504].includes(statusCode)) {
+  if ([400, 401, 402, 429, 500, 502, 503, 504].includes(statusCode)) {
     console.log(`API Key ${apiKey} failed with status ${statusCode}. Adding to cooldown.`);
     FAILED_KEYS.set(apiKey, now + 10 * 60 * 1000); // 10 minutes cooldown
   } else if (statusCode === 403) {
