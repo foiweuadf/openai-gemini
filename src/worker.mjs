@@ -191,7 +191,7 @@ async function handleEmbeddings (req, apiKey) {
 }
 
 const DEFAULT_MODEL = "gemini-2.5-flash";
-async function handleCompletions (req, apiKey, retrycnt = 7, now = 0) {
+async function handleCompletions (req, apiKey, retrycnt = 7, now = 0, totalRetries = 0) {
   let model = DEFAULT_MODEL;
   const FAILED_KEYS = globalThis.FAILED_KEYS || (globalThis.FAILED_KEYS = new Map());
   const PERMANENTLY_FAILED_KEYS = globalThis.PERMANENTLY_FAILED_KEYS || (globalThis.PERMANENTLY_FAILED_KEYS = new Set());
@@ -291,6 +291,11 @@ async function handleCompletions (req, apiKey, retrycnt = 7, now = 0) {
   // console.log("Response Text:", responseText);
   if(retrycnt>0){
     console.log(`retry, ${retrycnt}`);
+    // Sleep 10 seconds every 10 retries
+    if (retrycnt % 10 === 0) {
+      console.log(`Reached ${retrycnt} retries, sleeping for 10 seconds`);
+      await new Promise(resolve => setTimeout(resolve, 10000));
+    }
     const API_KEYS = Netlify.env.get("API_KEYS");
     if (!API_KEYS) {
       console.log("API_KEYS 环境变量不存在或为空。");
@@ -721,7 +726,7 @@ const transformCandidates = (key, cand) => {
 // 检查连续相同 tool calls 的工具函数
 const isDuplicateToolCall = (newToolCall, lastToolCalls) => {
   if (!lastToolCalls || !lastToolCalls.length) return false;
-  
+
   const lastToolCall = lastToolCalls[lastToolCalls.length - 1];
   return (
     newToolCall.function.name === lastToolCall.function.name &&
@@ -833,12 +838,12 @@ function toOpenAiStream (line, controller) {
     }));
   }
   delete cand.delta.role;
-  
+
   // 检查 tool calls 是否重复
   if (cand.tool_calls && cand.tool_calls.length > 0) {
     const lastObj = this.last[cand.index];
     const lastToolCalls = lastObj?.choices[0]?.tool_calls || [];
-    
+
     // 过滤掉重复的 tool calls
     const uniqueToolCalls = [];
     for (const toolCall of cand.tool_calls) {
@@ -846,7 +851,7 @@ function toOpenAiStream (line, controller) {
         uniqueToolCalls.push(toolCall);
       }
     }
-    
+
     if (uniqueToolCalls.length > 0) {
       cand.tool_calls = uniqueToolCalls;
       controller.enqueue(sseline(obj));
@@ -859,7 +864,7 @@ function toOpenAiStream (line, controller) {
       controller.enqueue(sseline(obj));
     }
   }
-  
+
   cand.finish_reason = finish_reason;
   if (data.usageMetadata && this.streamIncludeUsage) {
     obj.usage = transformUsage(data.usageMetadata);
@@ -875,3 +880,4 @@ function toOpenAiStreamFlush (controller) {
     controller.enqueue("data: [DONE]" + delimiter);
   }
 }
+
