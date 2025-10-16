@@ -51,7 +51,7 @@ export default {
           // 按成功次数加权随机选择
           let random = Math.random() * totalSuccessCount;
           for (const key of apiKeys) {
-            random -= (SUCCESS_COUNTS.get(key) || 0);
+            random -= (SUCCESS_COUNTS.get(key) || 1);
             if (random <= 0) {
               apiKey = key;
               break;
