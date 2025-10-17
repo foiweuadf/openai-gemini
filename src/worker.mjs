@@ -293,8 +293,8 @@ async function handleCompletions (req, apiKey, retrycnt = 7, now = 0, totalRetri
     console.log(`retry, ${retrycnt}`);
     // Sleep 10 seconds every 10 retries
     if (retrycnt % 10 === 0) {
-      console.log(`Reached ${retrycnt} retries, sleeping for 10 seconds`);
-      await new Promise(resolve => setTimeout(resolve, 10000));
+      console.log(`Reached ${retrycnt} retries, sleeping for 5 seconds`);
+      await new Promise(resolve => setTimeout(resolve, 5000));
     }
     const API_KEYS = Netlify.env.get("API_KEYS");
     if (!API_KEYS) {
